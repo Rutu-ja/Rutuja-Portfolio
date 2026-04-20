@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rutuja Pandule — Portfolio</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #11111b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'SF Mono', 'Fira Mono', 'Menlo', 'Consolas', monospace;
+    }
+    .wrapper {
+      width: min(860px, 98vw);
+      height: min(680px, 96vh);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 0.5px solid rgba(255,255,255,0.1);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-size: 13.5px;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Title bar */
+    .titlebar {
+      background: #313244;
+      padding: 11px 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #28c840; }
+    .titlebar-label {
+      flex: 1; text-align: center; font-size: 12px;
+      color: #6c7086; letter-spacing: 0.5px;
+    }
+    /* Terminal output */
+    #term {
+      flex: 1;
+      padding: 18px 22px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    #term::-webkit-scrollbar { width: 6px; }
+    #term::-webkit-scrollbar-track { background: transparent; }
+    #term::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+    /* Input row */
+    .input-area {
+      padding: 10px 22px 16px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      background: #181825;
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+    }
+    .input-row input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: #f9e2af; font-family: inherit; font-size: 13.5px;
+      caret-color: #f9e2af;
+    }
+    .input-row input::placeholder { color: #45475a; }
+    #sugg { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sbtn {
+      background: rgba(137,180,250,0.08);
+      border: 0.5px solid rgba(137,180,250,0.25);
+      color: #89b4fa;
+      padding: 4px 12px;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .sbtn:hover { background: rgba(137,180,250,0.2); }
+    /* Output blocks */
+    .out-block { margin-bottom: 18px; padding-left: 4px; }
+    .ln { line-height: 1.8; margin-bottom: 1px; }
+    /* Colors */
+    .g { color: #a6e3a1; }
+    .b { color: #89b4fa; }
+    .y { color: #f9e2af; }
+    .p { color: #f38ba8; }
+    .t { color: #94e2d5; }
+    .m { color: #6c7086; }
+    .w { color: #cdd6f4; }
+    .bold { font-weight: 700; }
+    .tag {
+      display: inline-block;
+      background: rgba(137,180,250,0.12);
+      color: #89b4fa;
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .sep { color: #313244; }
+    /* Prompt line */
+    .prompt-line {
+      display: flex; align-items: baseline; gap: 5px; margin-bottom: 8px; flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="titlebar">
+    <div class="dot dot-r"></div>
+    <div class="dot dot-y"></div>
+    <div class="dot dot-g"></div>
+    <div class="titlebar-label">rutuja@portfolio — zsh</div>
+  </div>
+
+  <div id="term"></div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <span class="g">rutuja@portfolio</span>
+      <span class="m">:</span>
+      <span class="b">~</span>
+      <span class="w">$</span>
+      <input id="cmd" type="text" placeholder="type a command and press enter…" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="sugg"></div>
+  </div>
+</div>
+
+<script>
+const term = document.getElementById('term');
+const cmdInput = document.getElementById('cmd');
+const sugg = document.getElementById('sugg');
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function ln(html) {
+  return `<div class="ln">${html}</div>`;
+}
+function blank() { return ln('&nbsp;'); }
+function sep() { return ln(`<span class="sep">${'─'.repeat(54)}</span>`); }
+function section(title) {
+  return ln(`<span class="g bold" style="font-size:14px;">${title}</span>`) + sep();
+}
+function kv(key, val) {
+  return ln(`<span class="y" style="display:inline-block;min-width:130px;">${key}</span><span class="w">${val}</span>`);
+}
+function bullet(html) {
+  return ln(`<span class="m" style="padding-left:18px;">◦</span> <span class="w">${html}</span>`);
+}
+function job(title, stack) {
+  return ln(`<span class="p bold">▸ ${title}</span>`) +
+         ln(`<span class="m" style="padding-left:2px;">${stack}</span>`);
+}
+function award(icon, title, year, desc) {
+  return ln(`<span class="y bold">${icon}  ${title}</span> <span class="m">· ${year}</span>`) +
+         ln(`<span class="m" style="padding-left:26px;">${desc}</span>`);
+}
+function proj(icon, title, stack, desc) {
+  return ln(`<span class="b">${icon}</span> <span class="y bold">${title}</span> <span class="m">${stack}</span>`) +
+         ln(`<span class="w" style="padding-left:22px;">${desc}</span>`);
+}
+
+// ── Commands ─────────────────────────────────────────────────────────
+const COMMANDS = {
+  help: () =>
+    section('Available Commands') +
+    kv('whoami      ','— about Rutuja') +
+    kv('skills      ','— tech stack & tools') +
+    kv('experience  ','— work history') +
+    kv('projects    ','— side projects & fun code') +
+    kv('awards      ','— recognition & honors') +
+    kv('education   ','— academic background') +
+    kv('contact     ','— get in touch') +
+    kv('clear       ','— clear the terminal'),
+
+  whoami: () =>
+    section('Rutuja Pandule — Web Developer') +
+    blank() +
+    ln('Frontend dev with <span class="y bold">3+ years</span> of experience building clean,') +
+    ln('user-friendly interfaces across complex real-world domains.') +
+    blank() +
+    ln('<span class="tag">Healthcare</span><span class="tag">EdTech</span><span class="tag">Web3</span>') +
+    blank() +
+    ln('<span class="g">✓</span> Open to Frontend & Backend roles') +
+    ln('<span class="g">✓</span> Available to join immediately') +
+    ln('<span class="m">📍 Pune, Maharashtra</span>'),
+
+  skills: () =>
+    section('Tech Stack') +
+    kv('Languages   ','JavaScript · TypeScript · Java · HTML · CSS') +
+    kv('Frameworks  ','React.js · Next.js · Vue.js · Redux · Material UI · Konva') +
+    kv('Styling     ','Tailwind CSS · CSS3 · Responsive Design · Webpack') +
+    kv('DevOps      ','Git · GitHub · Docker · NPM · CI/CD') +
+    kv('Services    ','REST APIs · Web3 / Wallet Integration') +
+    kv('Testing     ','Jest · Vitest') +
+    kv('Tools       ','Figma · Jira') +
+    kv('Other       ','a11y · Performance · SOLID · Agile · Code Reviews'),
+
+  experience: () =>
+    section('Work Experience') +
+    ln('<span class="b bold">Nonstop IO, Pune</span><span class="m">  ·  Mar 2023 – Apr 2026</span>') +
+    blank() +
+    job('Genetic Risk Assessment Platform','React (TypeScript) · Konva · CSS · GWT · Java') +
+    bullet('Large-scale legacy system for hereditary disease risk & cancer prediction') +
+    bullet('Built <span class="y">Pedigree Builder</span> — family tree tool published as internal NPM package') +
+    bullet('Complex interactive UI inspired by Google Docs collaboration model') +
+    bullet('Critical bug fixes improving system stability and performance') +
+    blank() +
+    job('EdTech Assessment Platform','Frontend · Accessibility (a11y)') +
+    bullet('Improved a11y across the platform for usability & compliance standards') +
+    bullet('Accessible UI patterns for diverse users') +
+    blank() +
+    job('Healthcare Management Platform','Next.js · Tailwind CSS') +
+    bullet('<span class="g">Sole frontend dev</span> — delivered entire project in <span class="y">1.5 months</span>') +
+    bullet('Dynamic form builder that generates UI from JSON configurations') +
+    blank() +
+    job('Travel Platform','Vue.js · Tailwind CSS') +
+    bullet('End-to-end development for user-facing and admin platforms') +
+    bullet('Full ownership of architecture, components, and documentation') +
+    blank() +
+    job('Web3 Event Management Platform','React · Redux · Material UI · Web3') +
+    bullet('Crypto wallet authentication integration for secure login') +
+    bullet('Redux state management · responsive UI with Material UI'),
+
+  projects: () =>
+    section('Projects & Code for Fun') +
+    blank() +
+    proj('📦','Custom React Hooks Collection','[NPM · TypeScript]',
+      'Hooks for state management, UI interactions & API calls') +
+    blank() +
+    proj('🤖','AI Webpage Summarizer','[OpenAI API · JS · HTML]',
+      'Chrome extension — generates & downloads page summaries as .txt') +
+    blank() +
+    proj('⛓️','Pharmacy Supply Chain Blockchain','[Solidity · Angular · MetaMask · Docker]',
+      'Blockchain implementation in traditional supply chain') +
+    blank() +
+    proj('👤','Candidate Management Portal','[React · Material UI · Google Login · REST API]',
+      'CRUD operations with Axios + Google OAuth') +
+    blank() +
+    proj('🛍️','Online Shop Website','[React.js · Tailwind · HTML]',
+      'Interactive UI for online shopping app') +
+    blank() +
+    proj('🃏','Magic Match — Memory Card Game','[React]',
+      'Card flip animations, magical themes & engaging memory challenges') +
+    blank() +
+    proj('❌','Tic-Tac-Toe','[Live demo available]',''),
+
+  awards: () =>
+    section('Awards & Recognition') +
+    blank() +
+    award('🏆','Best Newcomer','2023','Recognised for exceptional impact shortly after joining') +
+    blank() +
+    award('⭐','Star of the Month','January 2024','Outstanding contribution to the team') +
+    blank() +
+    award('💚','Best Volunteer','2025','Going above & beyond in community and team efforts') +
+    blank() +
+    award('🌟','Nomination: Star of Month + Impact Player','2025','Sustained high-impact work throughout the year') ,
+
+  education: () =>
+    section('Education') +
+    blank() +
+    ln('<span class="b bold">Savitribai Phule Pune University</span> <span class="m">· Pune, India</span>') +
+    ln('<span class="w">BE Computers</span>') +
+    ln('<span class="y bold">CGPA: 8.65</span> <span class="g">✓ Distinction</span>'),
+
+  contact: () =>
+    section('Get In Touch') +
+    blank() +
+    kv('📞 Phone    ','7264080098') +
+    kv('✉️  Email    ','rutu74ja@gmail.com') +
+    kv('🐙 GitHub   ','github.com/Rutu-ja') +
+    kv('💼 LinkedIn ','linkedin.com/in/rutuja-pandule') +
+    kv('📝 Medium   ','medium.com/@rutuja.pandule') +
+    kv('🌐 Portfolio','Portfolio - Rutuja'),
+};
+
+const ALL_CMDS = ['help','whoami','skills','experience','projects','awards','education','contact','clear'];
+
+// ── Print helpers ─────────────────────────────────────────────────────
+function printBlock(html) {
+  const d = document.createElement('div');
+  d.className = 'out-block';
+  d.innerHTML = html;
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
+}
+
+function printPrompt(text) {
+  printBlock(
+    `<div class="prompt-line">
+      <span class="g">rutuja@portfolio</span>
+      <span class="m">:</span>
+      <span class="b">~</span>
+      <span class="w">$</span>
+      <span class="y bold">${text}</span>
+    </div>`
+  );
+}
+
+function run(input) {
+  const c = input.trim().toLowerCase();
+  if (!c) return;
+  printPrompt(input);
+  if (c === 'clear') { term.innerHTML = ''; return; }
+  if (COMMANDS[c]) {
+    printBlock(COMMANDS[c]());
+  } else {
+    printBlock(`<span class="p">command not found: <b>${input}</b></span> — type <span class="y">help</span> to see available commands`);
+  }
+}
+
+// ── Input handler ─────────────────────────────────────────────────────
+cmdInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { run(cmdInput.value); cmdInput.value = ''; }
+});
+
+// ── Suggestion buttons ────────────────────────────────────────────────
+ALL_CMDS.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'sbtn';
+  b.textContent = c;
+  b.onclick = () => { run(c); cmdInput.focus(); };
+  sugg.appendChild(b);
+});
+
+// ── Banner ────────────────────────────────────────────────────────────
+const banner =
+  ln('<span class="b bold" style="font-size:15px;letter-spacing:1px;">❯ Rutuja Pandule · Portfolio Terminal</span>') +
+  sep() +
+  ln('<span class="w">Web Developer · React Specialist · 3+ Years Experience</span>') +
+  blank() +
+  ln('<span class="m">Type a command below or click a button to explore.</span>') +
+  ln(`<span class="m">Start with </span><span class="y">help</span><span class="m"> to see all commands.</span>`);
+
+printBlock(banner);
+cmdInput.focus();
+</script>
+</body>
+</html>
